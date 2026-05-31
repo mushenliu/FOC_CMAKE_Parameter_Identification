@@ -93,7 +93,7 @@
 //10——Q轴单位阶跃模型验证
 //11——D轴闭环阶跃模型验证
 //12——Q轴闭环阶跃模型验证
-#define Identification_Mode_Default 11
+#define Identification_Mode_Default 12
 
 //速度环输出限幅（电流环给定限幅）
 #define Speed_Output_Limit 0.5
