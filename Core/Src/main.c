@@ -342,7 +342,7 @@ int main(void)
     theta_last = 0;
     wm_last = 0;
     theta_e = 0;
-    Angel_ZERO = 130;
+    // Angel_ZERO = 90;
     Ud = Ud_Default;
     Uq = Uq_Default;
     // 电流环控制中断

@@ -93,7 +93,7 @@
 //10——Q轴单位阶跃模型验证
 //11——D轴闭环阶跃模型验证
 //12——Q轴闭环阶跃模型验证
-#define Identification_Mode_Default 12
+#define Identification_Mode_Default 1
 
 //速度环输出限幅（电流环给定限幅）
 #define Speed_Output_Limit 0.5
@@ -102,7 +102,7 @@
 //级数
 #define PRBS_N 11
 //幅值
-#define PRBS_A 0.5
+#define PRBS_A 5
 //工作点
 #define PRBS_Work_Point 0
 //周期数
