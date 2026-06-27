@@ -60,41 +60,41 @@
 uint32_t ADC_Data[3] = {0, 0, 0};
 // ADC采样转换后电流数据
 float Current_abc[3] = {0, 0, 0};
-// ADC低通滤波
-float Current_abc_last[3] = {0, 0, 0};
 // 机械角度
-float theta = 0;
-float theta_last = 0;
+float theta_m = 0;
+float theta_m_last = 0;
 // 电角度
 float theta_e = 0;
-float Sin = 0;
-float Cos = 0;
+float Sin_theta_e = 0;
+float Cos_theta_e = 0;
 // 机械角速度
-float wm = 0;
+float n_m = 0;
 // 速度环低通滤波
-float wm_last = 0;
+float n_m_last = 0;
 // 零位偏置
 float ADC1_ZERO = 0;
 float ADC2_ZERO = 0;
 float Angel_ZERO = 0;
 // 两相静止坐标系电流
-float alpha = 0;
-float beta = 0;
+float I_alpha = 0;
+float I_beta = 0;
 // 同步旋转坐标系电流
-float D = 0;
-float Q = 0;
+float I_d = 0;
+float I_q = 0;
 // SVPWM得到的三相占空比
 float Duty_A = 0;
 float Duty_B = 0;
 float Duty_C = 0;
 // 母线电压
 float Udc = U_DC_Default;
+//SVPWM最大电压
+float U_svpwm_max = U_DC_Default / SQRT3;
 // DQ轴驱动电压
-float Ud = Ud_Default;
-float Uq = Uq_Default;
+float U_d = Ud_Default;
+float U_q = Uq_Default;
 // DQ轴给定电流
-float Id_Target = ID_Target_Default;
-float Iq_Target = IQ_Target_Default;
+float I_d_Target = ID_Target_Default;
+float I_q_Target = IQ_Target_Default;
 // 电流-速度环线性控制器
 Discrete_Controller_Struct D_Controller, Q_Controller, Speed_Controller;
 // 指令接收全局变量
@@ -116,6 +116,8 @@ float Output_theta_e[((1 << PRBS_N) - 1) * PRBS_n];
 
 // 伪随机辨识结束标志位
 bool HK_END = false;
+//电流环运行标志位
+bool Current_Control_Flag = false;
 
 // 永磁体磁链
 float Psi = 0;
@@ -176,7 +178,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
     // M序列生成
-    if (Identification_Mode == 5 || Identification_Mode == 8)
+    if (Identification_Mode == 3 || Identification_Mode == 5)
     {
         /* 定义存储数组（大小为周期长度×周期数） */
         uint32_t lfsr = LFSR_INIT;
@@ -199,8 +201,8 @@ int main(void)
             }
         }
     }
-    else if (Identification_Mode == 9 || Identification_Mode == 10 
-      || Identification_Mode == 11 || Identification_Mode == 12)
+    else if (Identification_Mode == 6 || Identification_Mode == 7 
+      || Identification_Mode == 8 || Identification_Mode == 9)
     {
         uint32_t period = ((1 << PRBS_N) - 1) * PRBS_n;
         uint32_t seq_idx = 0; // 数组索引
@@ -262,89 +264,140 @@ int main(void)
     HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
     HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
     // 编码器零位校准
+    // int k = 0;
+    // Ud = 12;
+    // Uq = 0;
+    // // 基于I闭环控制模型抽象的编码器零位矫正
+    // float wm_0_90[2] = {0};
+    // for (int i = 0; i < 2; i++)
+    // {
+    //     // 读取起始机械角度
+    //     theta_last = TLE5012B_Angle();
+    //     // 给定Ud情况下转动
+    //     for (int j = 0; j < 50; j++)
+    //     {
+    //         theta_e = TLE5012B_Angle();
+    //         theta_e = theta_e * MOTOR_POLE_PAIRS + i * 90;
+    //         DSP_Float_Calc_SinCos(theta_e, &Sin, &Cos);
+    //         SVPWM_Calculation(&Ud, &Uq, Sin, Cos, Udc, &Duty_A, &Duty_B, &Duty_C);
+    //         Set_CCR(Duty_A, Duty_B, Duty_C);
+    //     }
+    //     // 读取结束机械角度
+    //     theta = TLE5012B_Angle();
+    //     wm_0_90[i] = theta - theta_last;
+    //     Ud = 12;
+    // }
+    // if (wm_0_90[0] * wm_0_90[1] < 0)
+    // {
+    //     // 零位位于第一、第三象限
+    //     if (wm_0_90[1] < 0)
+    //     {
+    //         // 零位位于第三象限
+    //         Angel_ZERO = 180;
+    //     }
+    //     else if (wm_0_90[1] > 0)
+    //     {
+    //         // 零位位于第一象限
+    //         Angel_ZERO = 0;
+    //     }
+    // }
+    // else if (wm_0_90[0] * wm_0_90[1] > 0)
+    // {
+    //     // 零位位于第二、第四象限
+    //     if (wm_0_90[1] < 0)
+    //     {
+    //         // 零位位于第二象限
+    //         Angel_ZERO = 90;
+    //     }
+    //     else if (wm_0_90[1] > 0)
+    //     {
+    //         // 零位位于第四象限
+    //         Angel_ZERO = 270;
+    //     }
+    // }
+    // while (k < 3)
+    // {
+    //     theta_last = TLE5012B_Angle();
+    //     for (int i = 0; i < 100; i++)
+    //     {
+    //         theta_e = TLE5012B_Angle();
+    //         theta_e = theta_e * MOTOR_POLE_PAIRS + Angel_ZERO;
+    //         DSP_Float_Calc_SinCos(theta_e, &Sin, &Cos);
+    //         SVPWM_Calculation(&Ud, &Uq, Sin, Cos, Udc, &Duty_A, &Duty_B, &Duty_C);
+    //         Set_CCR(Duty_A, Duty_B, Duty_C);
+    //     }
+    //     theta = TLE5012B_Angle();
+    //     wm = (1 - Speed_Filter) * (theta - theta_last) + Speed_Filter * wm;
+    //     Ud = 12;
+    //     if (wm < 0.000001 && wm > -0.000001)
+    //     {
+    //         k++;
+    //     }
+    //     else
+    //     {
+    //         k = 0;
+    //         Angel_ZERO -= 5 * wm;
+    //     }
+    // }
+    // theta = 0;
+    // wm = 0;
+    // theta_last = 0;
+    // wm_last = 0;
+    // theta_e = 0;
+    // // Angel_ZERO = 90;
+    // Ud = Ud_Default;
+    // Uq = Uq_Default;
+
     int k = 0;
-    Ud = 12;
-    Uq = 0;
-    // 基于I闭环控制模型抽象的编码器零位矫正
-    float wm_0_90[2] = {0};
-    for (int i = 0; i < 2; i++)
+    U_d = U_svpwm_max;
+    while(k<10)
     {
-        // 读取起始机械角度
-        theta_last = TLE5012B_Angle();
-        // 给定Ud情况下转动
-        for (int j = 0; j < 50; j++)
-        {
-            theta_e = TLE5012B_Angle();
-            theta_e = theta_e * MOTOR_POLE_PAIRS + i * 90;
-            DSP_Float_Calc_SinCos(theta_e, &Sin, &Cos);
-            SVPWM_Calculation(&Ud, &Uq, Sin, Cos, Udc, &Duty_A, &Duty_B, &Duty_C);
-            Set_CCR(Duty_A, Duty_B, Duty_C);
-        }
-        // 读取结束机械角度
-        theta = TLE5012B_Angle();
-        wm_0_90[i] = theta - theta_last;
-        Ud = 12;
+      //A相
+      Set_CCR(0.9,0.1,0.1);
+      HAL_Delay(500);
+      theta_e = TLE5012B_Angle() * MOTOR_POLE_PAIRS;
+      theta_e = fmod(theta_e, 360);
+      theta_e<0?theta_e+=360:theta_e;
+      Angel_ZERO += 360 - theta_e;
+      //B相
+      Set_CCR(0.1,0.9,0.1);
+      HAL_Delay(500);
+      theta_e = TLE5012B_Angle() * MOTOR_POLE_PAIRS - 120;
+      theta_e = fmod(theta_e, 360);
+      theta_e<0?theta_e+=360:theta_e;
+      Angel_ZERO += 360 - theta_e;  
+      //C相
+      Set_CCR(0.1,0.1,0.9);
+      HAL_Delay(500);
+      theta_e = TLE5012B_Angle() * MOTOR_POLE_PAIRS + 120;
+      theta_e = fmod(theta_e, 360);
+      theta_e<0?theta_e+=360:theta_e;
+      Angel_ZERO += 360 - theta_e;
+      //计算零位
+      Angel_ZERO = Angel_ZERO / 3;
+      //验证
+      theta_m_last = TLE5012B_Angle();
+      for (int i = 0; i < 100; i++)
+      {
+        theta_e = TLE5012B_Angle();
+        theta_e = theta_e * MOTOR_POLE_PAIRS + Angel_ZERO;
+        DSP_Float_Calc_SinCos(theta_e, &Sin_theta_e, &Cos_theta_e);
+        SVPWM_Calculation(&U_d, &U_q, Sin_theta_e, Cos_theta_e, U_svpwm_max, Udc, &Duty_A, &Duty_B, &Duty_C);
+        Set_CCR(Duty_A, Duty_B, Duty_C);
+      }
+      theta_m = TLE5012B_Angle();
+      n_m = (1 - Speed_Filter) * (theta_m - theta_m_last) + Speed_Filter * n_m;
+      U_d = 0;
+      if (n_m < 0.5 && n_m > -0.5)
+      {
+        break; 
+      }
+      else {
+        k++;
+        Angel_ZERO = 0;
+      }
     }
-    if (wm_0_90[0] * wm_0_90[1] < 0)
-    {
-        // 零位位于第一、第三象限
-        if (wm_0_90[1] < 0)
-        {
-            // 零位位于第三象限
-            Angel_ZERO = 180;
-        }
-        else if (wm_0_90[1] > 0)
-        {
-            // 零位位于第一象限
-            Angel_ZERO = 0;
-        }
-    }
-    else if (wm_0_90[0] * wm_0_90[1] > 0)
-    {
-        // 零位位于第二、第四象限
-        if (wm_0_90[1] < 0)
-        {
-            // 零位位于第二象限
-            Angel_ZERO = 90;
-        }
-        else if (wm_0_90[1] > 0)
-        {
-            // 零位位于第四象限
-            Angel_ZERO = 270;
-        }
-    }
-    while (k < 3)
-    {
-        theta_last = TLE5012B_Angle();
-        for (int i = 0; i < 100; i++)
-        {
-            theta_e = TLE5012B_Angle();
-            theta_e = theta_e * MOTOR_POLE_PAIRS + Angel_ZERO;
-            DSP_Float_Calc_SinCos(theta_e, &Sin, &Cos);
-            SVPWM_Calculation(&Ud, &Uq, Sin, Cos, Udc, &Duty_A, &Duty_B, &Duty_C);
-            Set_CCR(Duty_A, Duty_B, Duty_C);
-        }
-        theta = TLE5012B_Angle();
-        wm = (1 - Speed_Filter) * (theta - theta_last) + Speed_Filter * wm;
-        Ud = 12;
-        if (wm < 0.000001 && wm > -0.000001)
-        {
-            k++;
-        }
-        else
-        {
-            k = 0;
-            Angel_ZERO -= 5 * wm;
-        }
-    }
-    theta = 0;
-    wm = 0;
-    theta_last = 0;
-    wm_last = 0;
-    theta_e = 0;
-    // Angel_ZERO = 90;
-    Ud = Ud_Default;
-    Uq = Uq_Default;
+
     // 电流环控制中断
     HAL_TIM_PWM_Start_IT(&htim1, TIM_CHANNEL_4);
     // 速度环控制中断
@@ -355,23 +408,25 @@ int main(void)
     // 绑定串口
     JUSTFLOAT_BindUart(&huart4);
     // 注册变量表
-    JUSTFLOAT_AddData(&theta);
+    JUSTFLOAT_AddData(&theta_m);
     JUSTFLOAT_AddData(&theta_e);
-    JUSTFLOAT_AddData(&wm);
+    JUSTFLOAT_AddData(&n_m);
     JUSTFLOAT_AddData(&Udc);
-    // JUSTFLOAT_AddData(&Current_abc[0]);
-    // JUSTFLOAT_AddData(&Current_abc[1]);
-    // JUSTFLOAT_AddData(&Current_abc[2]);
-    JUSTFLOAT_AddData(&D);
-    JUSTFLOAT_AddData(&Q);
+    JUSTFLOAT_AddData(&I_d);
+    JUSTFLOAT_AddData(&I_q);
     // JUSTFLOAT_AddData(&Duty_A);
     // JUSTFLOAT_AddData(&Duty_B);
     // JUSTFLOAT_AddData(&Duty_C);
     JUSTFLOAT_AddData(&Angel_ZERO);
-    JUSTFLOAT_AddData(&Ud);
-    JUSTFLOAT_AddData(&Uq);
+    JUSTFLOAT_AddData(&U_d);
+    JUSTFLOAT_AddData(&U_q);
     JUSTFLOAT_AddData(&D_Controller.Setvalue);
     JUSTFLOAT_AddData(&Q_Controller.Setvalue);
+    JUSTFLOAT_AddData(&Speed_Controller.Setvalue);
+    JUSTFLOAT_AddData(&Current_abc[0]);
+    JUSTFLOAT_AddData(&Current_abc[1]);
+    JUSTFLOAT_AddData(&Current_abc[2]);
+    JUSTFLOAT_AddData(&Psi);
     
 
   /* USER CODE END 2 */

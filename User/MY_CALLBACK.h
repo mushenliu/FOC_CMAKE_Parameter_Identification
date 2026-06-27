@@ -10,16 +10,13 @@
 //电机参数
 #define MOTOR_POLE_PAIRS 14
 //相电阻，单位Ω
-#define MOTOR_R 8.40955
+#define MOTOR_R 5.70125
 //D轴同步电感，单位H
-#define MOTOR_Ld 0.00209206
+#define MOTOR_Ld 0.00184357
 //永磁体磁链，单位Wb
-#define MOTOR_Psi 0.019415978
+#define MOTOR_Psi 0.009600568
 //Q轴同步电感，单位H
-#define MOTOR_Lq 0.0024
-
-//电流环一阶低通滤波系数
-#define Current_Filter 0.8
+#define MOTOR_Lq 0.00194861
 
 //速度环一阶低通滤波系数
 #define Speed_Filter 0.1
@@ -81,19 +78,16 @@
 #define Uq_Default 0
 
 //参数辨识标志位
-//1——相电阻，Ud正向
-//2——相电阻，Ud负向
-//3——相电阻，Uq正向
-//4——相电阻，Uq负向
-//5——伪随机辨识Ld同步电感
-//6——永磁体磁链辨识，正向
-//7——永磁体磁链辨识，负向
-//8——伪随机辨识Lq同步电感
-//9——D轴单位阶跃模型验证
-//10——Q轴单位阶跃模型验证
-//11——D轴闭环阶跃模型验证
-//12——Q轴闭环阶跃模型验证
-#define Identification_Mode_Default 1
+//1——相电阻，D轴方向
+//2——相电阻，Q轴方向
+//3——伪随机辨识Ld同步电感
+//4——永磁体磁链辨识
+//5——伪随机辨识Lq同步电感
+//6——D轴单位阶跃模型验证
+//7——Q轴单位阶跃模型验证
+//8——D轴闭环阶跃模型验证
+//9——Q轴闭环阶跃模型验证
+#define Identification_Mode_Default 9
 
 //速度环输出限幅（电流环给定限幅）
 #define Speed_Output_Limit 0.5
@@ -102,7 +96,7 @@
 //级数
 #define PRBS_N 11
 //幅值
-#define PRBS_A 5
+#define PRBS_A 1
 //工作点
 #define PRBS_Work_Point 0
 //周期数
@@ -123,13 +117,18 @@
 // 控制器传递函数为C(z)=( b0*z^5 + b1*z^4 + b2*z^3 + b3*z^2 + b4*z + b5) / (z^5 + a1*z^4 + a2*z^3 + a3*z^2 + a4*z + a5)
 // 对应的差分方程为y(k) = -a1*y(n-1) - a2*y(n-2) - a3*y(n-3) - a4*y(n-4) - a5*y(n-5) +
 //                       b0*u(n) + b1*u(n-1) + b2*u(n-2) + b3*u(n-3) + b4*u(n-4) + b5*u(n-5)
+// 使用增量式实现，则等价控制器传递函数为(1-z^{-1})C(z) = ΔY(z)/U(z)
+// 对应的增量式差分方程为
+// Δy(k)=y(k)-y(k-1) = 
+//     -a1*Δy(n-1) - a2*Δy(n-2) - a3*Δy(n-3) - a4*Δy(n-4) - a5*Δy(n-5) +
+//     b0*u(n) + (b1-b0)*u(n-1) + (b2-b1)*u(n-2) + (b3-b2)*u(n-3) + (b4-b3)*u(n-4) + (b5-b4)*u(n-5) - b5*u(n-6)
 typedef struct {
     float a1, a2, a3, a4, a5;
     float b0, b1, b2, b3, b4, b5;
-    float Error_Record[5];
-    float Output_Record[5];
+    float Error_Record[6];
+    float Output_Delta_Record[5];
     float Error_Now;
-    float Output_Now;
+    float Output_Delta_Now;
     float Setvalue;
 } Discrete_Controller_Struct;
 

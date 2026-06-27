@@ -17,8 +17,8 @@ void Inv_Park_Trans(float D, float Q, float Sin, float Cos, float *alpha, float 
 void DSP_Float_Calc_SinCos(float theta, float *Sin, float *Cos);
 
 //SVPWM计算法计算三相占空比
-void SVPWM_Calculation(float *Ud, float *Uq, float Sin, float Cos, float Udc, float *Duty_A, float *Duty_B,
-                       float *Duty_C);
+void SVPWM_Calculation(float* Ud, float* Uq, float Sin, float Cos, float U_svpwm_max,float Udc,
+    float* Duty_A, float* Duty_B,float* Duty_C);
 
 //将三相占空比转换为CCR值并更新TIM
 void Set_CCR(float Duty_A, float Duty_B, float Duty_C);

@@ -31,7 +31,18 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "adc.h"
+#include "dma.h"
+#include "opamp.h"
+#include "spi.h"
+#include "tim.h"
+#include "usart.h"
+#include "gpio.h"
 
+#include "string.h"
+#include "stdbool.h"
+#include "stdio.h"
+#include "arm_math.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
