@@ -177,46 +177,47 @@ int main(void)
   MX_UART4_Init();
   /* USER CODE BEGIN 2 */
 
-    // M序列生成
+    // 伪随机序列生成
     if (Identification_Mode == 3 || Identification_Mode == 5)
     {
-        /* 定义存储数组（大小为周期长度×周期数） */
-        uint32_t lfsr = LFSR_INIT;
-        uint32_t period = (1 << PRBS_N) - 1;
-        uint32_t seq_idx = 0; // 数组索引
-        for (uint8_t cyc = 0; cyc < PRBS_n; cyc++)
+      /* 定义存储数组（大小为周期长度×周期数） */
+      uint32_t lfsr = LFSR_INIT;
+      uint32_t period = (1 << PRBS_N) - 1;
+      uint32_t seq_idx = 0; // 数组索引
+      for (uint8_t cyc = 0; cyc < PRBS_n; cyc++)
+      {
+        for (uint32_t i = 0; i < period; i++)
         {
-            for (uint32_t i = 0; i < period; i++)
-            {
-                /* 计算反馈位 */
-                uint32_t fb = 0;
-                for (uint8_t t = 0; t < tap_cnt; t++)
-                {
-                    fb ^= (lfsr >> taps[t]) & 0x01;
-                }
-                /* 存储序列位到数组（0或1） */
-                m_seq[seq_idx++] = (lfsr & 0x01);
-                /* 更新移位寄存器 */
-                lfsr = (lfsr >> 1) | (fb << (PRBS_N - 1));
-            }
+        /* 计算反馈位 */
+        uint32_t fb = 0;
+        for (uint8_t t = 0; t < tap_cnt; t++)
+        {
+          fb ^= (lfsr >> taps[t]) & 0x01;
         }
+        /* 存储序列位到数组（0或1） */
+        m_seq[seq_idx++] = (lfsr & 0x01);
+        /* 更新移位寄存器 */
+        lfsr = (lfsr >> 1) | (fb << (PRBS_N - 1));
+        }
+      }
     }
+  // 测试方波信号生成
     else if (Identification_Mode == 6 || Identification_Mode == 7 
       || Identification_Mode == 8 || Identification_Mode == 9)
     {
-        uint32_t period = ((1 << PRBS_N) - 1) * PRBS_n;
-        uint32_t seq_idx = 0; // 数组索引
-        for (seq_idx = 0; seq_idx < period; seq_idx++)
+      uint32_t period = ((1 << PRBS_N) - 1) * PRBS_n;
+      uint32_t seq_idx = 0; // 数组索引
+      for (seq_idx = 0; seq_idx < period; seq_idx++)
+      {
+        if(seq_idx < Square_Start_Index || seq_idx >= (Square_Start_Index + Square_Period))
         {
-            if(seq_idx < Step_Start_Index)
-            {
-                m_seq[seq_idx] = 0;
-            }
-            else
-            {
-                m_seq[seq_idx] = 1;
-            }
+          m_seq[seq_idx] = 0;
         }
+        else
+        {
+          m_seq[seq_idx] = 1;
+        }
+      }
     }
 
     HAL_UARTEx_ReceiveToIdle_DMA(&huart4, UART_Buffer, 100);
@@ -237,19 +238,19 @@ int main(void)
     HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
     for (int i = 0; i < 10; i++)
     {
-        // ADC零位检测
-        HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
-        HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
-        HAL_ADC_Start(&hadc1);
-        if (HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY) == HAL_OK)
-        {
-            ADC1_ZERO += HAL_ADC_GetValue(&hadc1) / 4096.0 * 3.3;
-        }
-        HAL_ADC_Start(&hadc2);
-        if (HAL_ADC_PollForConversion(&hadc2, HAL_MAX_DELAY) == HAL_OK)
-        {
-            ADC2_ZERO += HAL_ADC_GetValue(&hadc2) / 4096.0 * 3.3;
-        }
+      // ADC零位检测
+      HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
+      HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
+      HAL_ADC_Start(&hadc1);
+      if (HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY) == HAL_OK)
+      {
+        ADC1_ZERO += HAL_ADC_GetValue(&hadc1) / 4096.0 * 3.3;
+      }
+      HAL_ADC_Start(&hadc2);
+      if (HAL_ADC_PollForConversion(&hadc2, HAL_MAX_DELAY) == HAL_OK)
+      {
+        ADC2_ZERO += HAL_ADC_GetValue(&hadc2) / 4096.0 * 3.3;
+      }
     }
     ADC1_ZERO = ADC1_ZERO / 10.0;
     ADC2_ZERO = ADC2_ZERO / 10.0;

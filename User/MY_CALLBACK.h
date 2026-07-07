@@ -12,9 +12,9 @@
 //相电阻，单位Ω
 #define MOTOR_R 5.70125
 //D轴同步电感，单位H
-#define MOTOR_Ld 0.00184357
+#define MOTOR_Ld 0.00186152
 //永磁体磁链，单位Wb
-#define MOTOR_Psi 0.009600568
+#define MOTOR_Psi 0.00965548
 //Q轴同步电感，单位H
 #define MOTOR_Lq 0.00194861
 
@@ -83,11 +83,11 @@
 //3——伪随机辨识Ld同步电感
 //4——永磁体磁链辨识
 //5——伪随机辨识Lq同步电感
-//6——D轴单位阶跃模型验证
-//7——Q轴单位阶跃模型验证
-//8——D轴闭环阶跃模型验证
-//9——Q轴闭环阶跃模型验证
-#define Identification_Mode_Default 9
+//6——D轴开环方波响应模型验证
+//7——Q轴开环方波响应模型验证
+//8——D轴闭环方波响应模型验证
+//9——Q轴闭环方波响应模型验证
+#define Identification_Mode_Default 7
 
 //速度环输出限幅（电流环给定限幅）
 #define Speed_Output_Limit 0.5
@@ -96,7 +96,7 @@
 //级数
 #define PRBS_N 11
 //幅值
-#define PRBS_A 1
+#define PRBS_A 2
 //工作点
 #define PRBS_Work_Point 0
 //周期数
@@ -104,14 +104,15 @@
 //移位寄存器初始值(非0)
 #define LFSR_INIT 0x0001
 
-//阶跃信号参数
-//阶跃起始值
-#define Step_Start 0
-//阶跃结束值
-#define Step_End  -0.5
-//阶跃开始序号
-#define Step_Start_Index 100
-
+//方波信号参数
+//方波起始值
+#define Square_Start 0
+//方波结束值
+#define Square_End  -5
+//方波开始序号
+#define Square_Start_Index 1000
+//方波长度
+#define Square_Period 100
 
 // 最高阶次5的线性控制器结构体
 // 控制器传递函数为C(z)=( b0*z^5 + b1*z^4 + b2*z^3 + b3*z^2 + b4*z + b5) / (z^5 + a1*z^4 + a2*z^3 + a3*z^2 + a4*z + a5)

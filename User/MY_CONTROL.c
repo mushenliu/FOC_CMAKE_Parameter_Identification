@@ -249,9 +249,11 @@ void Current_Control()
             {
                 U_q = PRBS_Work_Point - PRBS_A;
             }
-            D_Controller.Error_Now = 0 - I_d;
-            Discrete_Controller(&D_Controller);
-            U_d += D_Controller.Output_Delta_Now;
+            // //电气锁轴
+            // D_Controller.Error_Now = 0.5 - I_d;
+            // Discrete_Controller(&D_Controller);
+            // U_d += D_Controller.Output_Delta_Now;
+
             Output_D[counter - 10000] = I_d;
             Output_Q[counter - 10000] = I_q;
             Output_theta_e[counter - 10000] = theta_e;
@@ -269,7 +271,7 @@ void Current_Control()
         {
             if (counter == (((1 << PRBS_N) - 1) * PRBS_n))
             {
-                U_d = (Step_Start + Step_End) / 2.0;
+                U_d = (Square_Start + Square_End) / 2.0;
                 HK_END = true;
                 counter = 0;
                 HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
@@ -277,11 +279,11 @@ void Current_Control()
             }
             else if (m_seq[counter] == 0)
             {
-                U_d = Step_Start;
+                U_d = Square_Start;
             }
             else
             {
-                U_d = Step_End;
+                U_d = Square_End;
             }
             Output_D[counter] = I_d;
             Output_Q[counter] = I_q;
@@ -300,7 +302,7 @@ void Current_Control()
         {
             if (counter == (((1 << PRBS_N) - 1) * PRBS_n))
             {
-                U_q = (Step_Start + Step_End) / 2.0;
+                U_q = (Square_Start + Square_End) / 2.0;
                 HK_END = true;
                 counter = 0;
                 HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
@@ -308,11 +310,11 @@ void Current_Control()
             }
             else if (m_seq[counter] == 0)
             {
-                U_q = Step_Start;
+                U_q = Square_Start;
             }
             else
             {
-                U_q = Step_End;
+                U_q = Square_End;
             }
             Output_D[counter] = I_d;
             Output_Q[counter] = I_q;
@@ -331,7 +333,7 @@ void Current_Control()
         {
             if (counter == ((1 << PRBS_N) - 1) * PRBS_n)
             {
-                D_Controller.Setvalue = Step_Start;
+                D_Controller.Setvalue = Square_Start;
                 HK_END = true;
                 counter = 0;
                 HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
@@ -339,11 +341,11 @@ void Current_Control()
             }
             else if (m_seq[counter] == 0)
             {
-                D_Controller.Setvalue = Step_Start;
+                D_Controller.Setvalue = Square_Start;
             }
             else
             {
-                D_Controller.Setvalue = Step_End;
+                D_Controller.Setvalue = Square_End;
             }
             D_Controller.Error_Now = D_Controller.Setvalue - I_d;
             Discrete_Controller(&D_Controller);
@@ -369,7 +371,7 @@ void Current_Control()
         {
             if (counter == ((1 << PRBS_N) - 1) * PRBS_n)
             {
-                Q_Controller.Setvalue = Step_Start;
+                Q_Controller.Setvalue = Square_Start;
                 HK_END = true;
                 counter = 0;
                 HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
@@ -377,11 +379,11 @@ void Current_Control()
             }
             else if (m_seq[counter] == 0)
             {
-                Q_Controller.Setvalue = Step_Start;
+                Q_Controller.Setvalue = Square_Start;
             }
             else
             {
-                Q_Controller.Setvalue = Step_End;
+                Q_Controller.Setvalue = Square_End;
             }
             Q_Controller.Error_Now = Q_Controller.Setvalue - I_q;
             Discrete_Controller(&Q_Controller);
@@ -575,17 +577,17 @@ void Speed_Control()
             // HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
             if (counter >= (((1 << PRBS_N) - 1) * PRBS_n))
             {
-                U_d = (Step_Start + Step_End) / 2.0;
+                U_d = (Square_Start + Square_End) / 2.0;
                 I_d = 0;
                 break;
             }
             else if (m_seq[counter] == 0)
             {
-                U_d = Step_Start;
+                U_d = Square_Start;
             }
             else
             {
-                U_d = Step_End;
+                U_d = Square_End;
             }
             I_d = Output_D[counter];
             I_q = Output_Q[counter];
@@ -602,17 +604,17 @@ void Speed_Control()
             HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
             if (counter >= (((1 << PRBS_N) - 1) * PRBS_n))
             {
-                U_q = (Step_Start + Step_End) / 2.0;
+                U_q = (Square_Start + Square_End) / 2.0;
                 I_q = 0;
                 break;
             }
             else if (m_seq[counter] == 0)
             {
-                U_q = Step_Start;
+                U_q = Square_Start;
             }
             else
             {
-                U_q = Step_End;
+                U_q = Square_End;
             }
             I_d = Output_D[counter];
             I_q = Output_Q[counter];
@@ -629,17 +631,17 @@ void Speed_Control()
             HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
             if (counter >= (((1 << PRBS_N) - 1) * PRBS_n))
             {
-                D_Controller.Setvalue = (Step_Start + Step_End) / 2.0;
+                D_Controller.Setvalue = (Square_Start + Square_End) / 2.0;
                 I_d = 0;
                 break;
             }
             if (m_seq[counter] == 0)
             {
-                D_Controller.Setvalue = Step_Start;
+                D_Controller.Setvalue = Square_Start;
             }
             else
             {
-                D_Controller.Setvalue = Step_End;
+                D_Controller.Setvalue = Square_End;
             }
             I_d = Output_D[counter];
             I_q = Output_Q[counter];
@@ -656,17 +658,17 @@ void Speed_Control()
             HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
             if (counter >= (((1 << PRBS_N) - 1) * PRBS_n))
             {
-                Q_Controller.Setvalue = (Step_Start + Step_End) / 2.0;
+                Q_Controller.Setvalue = (Square_Start + Square_End) / 2.0;
                 I_q = 0;
                 break;
             }
             if (m_seq[counter] == 0)
             {
-                Q_Controller.Setvalue = Step_Start;
+                Q_Controller.Setvalue = Square_Start;
             }
             else
             {
-                Q_Controller.Setvalue = Step_End;
+                Q_Controller.Setvalue = Square_End;
             }
             I_d = Output_D[counter];
             I_q = Output_Q[counter];
