@@ -5,14 +5,14 @@
 #include "stdbool.h"
 #include "tim.h"
 
-void Clarke_Trans(float A, float B, float C, float *alpha, float *beta)
+void Clarke_Trans(float A, float B, float C, float* alpha, float* beta)
 {
     // *alpha = 2 / 3.0 * (A - 0.5 * B - 0.5 * C);
     // *beta = 1 / 3.0 * (SQRT3 * B - SQRT3 * C);
     arm_clarke_f32(A, B, alpha, beta);
 }
 
-void Inv_Clarke_Trans(float alpha, float beta, float *A, float *B, float *C)
+void Inv_Clarke_Trans(float alpha, float beta, float* A, float* B, float* C)
 {
     // *A = alpha;
     // *B = -0.5 * alpha + SQRT3 / 2.0 * beta;
@@ -21,7 +21,7 @@ void Inv_Clarke_Trans(float alpha, float beta, float *A, float *B, float *C)
     *C = 0 - *A - *B;
 }
 
-void Park_Trans(float alpha, float beta, float Sin, float Cos, float *D, float *Q)
+void Park_Trans(float alpha, float beta, float Sin, float Cos, float* D, float* Q)
 {
     // DSP_Float_Calc_SinCos(theta_e, &sin_theta, &cos_theta);
     // DSP_Fixed_Calc_SinCos(theta_e, &sin_theta, &cos_theta);
@@ -31,7 +31,7 @@ void Park_Trans(float alpha, float beta, float Sin, float Cos, float *D, float *
     arm_park_f32(alpha, beta, D, Q, Sin, Cos);
 }
 
-void Inv_Park_Trans(float D, float Q, float Sin, float Cos, float *alpha, float *beta)
+void Inv_Park_Trans(float D, float Q, float Sin, float Cos, float* alpha, float* beta)
 {
     // DSP_Fixed_Calc_SinCos(theta_e, &sin_theta, &cos_theta);
     // CORDIC_Calc_SinCos(theta_e, &sin_theta, &cos_theta);
@@ -40,13 +40,13 @@ void Inv_Park_Trans(float D, float Q, float Sin, float Cos, float *alpha, float 
     arm_inv_park_f32(D, Q, alpha, beta, Sin, Cos);
 }
 
-void DSP_Float_Calc_SinCos(float theta, float *Sin, float *Cos)
+void DSP_Float_Calc_SinCos(float theta, float* Sin, float* Cos)
 {
     arm_sin_cos_f32(theta, Sin, Cos);
 }
 
-void SVPWM_Calculation(float* Ud, float* Uq, float Sin, float Cos, float U_svpwm_max,float Udc,
-    float* Duty_A, float* Duty_B,float* Duty_C)
+void SVPWM_Calculation(float* Ud, float* Uq, float Sin, float Cos, float U_svpwm_max, float Udc,
+                       float* Duty_A, float* Duty_B, float* Duty_C)
 {
     float U_alpha, U_beta = 0;
     float U_ABC[3] = {0};
@@ -61,7 +61,6 @@ void SVPWM_Calculation(float* Ud, float* Uq, float Sin, float Cos, float U_svpwm
     if (u_mag > U_svpwm_max)
     {
         u_mag = U_svpwm_max / u_mag;
-
     }
     else
     {
@@ -87,7 +86,7 @@ void Set_CCR(float Duty_A, float Duty_B, float Duty_C)
     __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, ARR * Duty_C);
 }
 
-void Discrete_Controller(Discrete_Controller_Struct *Controller)
+void Discrete_Controller(Discrete_Controller_Struct* Controller)
 {
     float Temp_Output_Delta = 0;
     Temp_Output_Delta -= Controller->a1 * Controller->Output_Delta_Record[0];
@@ -172,7 +171,7 @@ void Current_Control()
     // 计算电角度
     theta_e = theta_m * MOTOR_POLE_PAIRS + Angel_ZERO;
     theta_e = fmod(theta_e, 360);
-    theta_e<0?theta_e+=360:theta_e;
+    theta_e < 0 ? theta_e += 360 : theta_e;
     // 计算三角函数
     DSP_Float_Calc_SinCos(theta_e, &Sin_theta_e, &Cos_theta_e);
     // 计算电流
@@ -181,238 +180,276 @@ void Current_Control()
     switch (Identification_Mode)
     {
     // 3——伪随机辨识Ld同步电感
-    case 3: {
-        if (HK_END == false)
+    case 3:
         {
-            if (counter >= (((1 << PRBS_N) - 1) * PRBS_n) + 10000)
+            if (HK_END == false)
             {
-                U_d = PRBS_Work_Point;
-                HK_END = true;
-                counter = 0;
-                HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
-                break;
-            }
-            if (counter < 10000)
-            {
+                if (counter >= (((1 << PRBS_N) - 1) * PRBS_n) + 10000)
+                {
+                    U_d = PRBS_Work_Point;
+                    HK_END = true;
+                    counter = 0;
+                    HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
+                    break;
+                }
+                else if (counter < 10000)
+                {
+                    counter++;
+                    U_d = PRBS_Work_Point;
+                    SVPWM_Calculation(&U_d, &U_q, Sin_theta_e, Cos_theta_e, U_svpwm_max, Udc, &Duty_A, &Duty_B,
+                                      &Duty_C);
+                    // 设定CCR值
+                    Set_CCR(Duty_A, Duty_B, Duty_C);
+                    break;
+                }
+                else if (counter >= 10000)
+                {
+                    if (m_seq[counter - 10000] == 0)
+                    {
+                        U_d = PRBS_Work_Point + PRBS_A;
+                    }
+                    else if (m_seq[counter - 10000] == 1)
+                    {
+                        U_d = PRBS_Work_Point - PRBS_A;
+                    }
+                }
+                Output_D[counter - 10000] = I_d;
+                Output_Q[counter - 10000] = I_q;
+                Output_theta_e[counter - 10000] = theta_e;
                 counter++;
-                U_d = PRBS_Work_Point;
-                SVPWM_Calculation(&U_d, &U_q, Sin_theta_e, Cos_theta_e, U_svpwm_max,Udc, &Duty_A, &Duty_B, &Duty_C);
+                SVPWM_Calculation(&U_d, &U_q, Sin_theta_e, Cos_theta_e, U_svpwm_max, Udc, &Duty_A, &Duty_B, &Duty_C);
                 // 设定CCR值
                 Set_CCR(Duty_A, Duty_B, Duty_C);
                 break;
             }
-            else if (m_seq[counter - 10000] == 0)
-            {
-                U_d = PRBS_Work_Point + PRBS_A;
-            }
-            else
-            {
-                U_d = PRBS_Work_Point - PRBS_A;
-            }
-            Output_D[counter - 10000] = I_d;
-            Output_Q[counter - 10000] = I_q;
-            Output_theta_e[counter - 10000] = theta_e;
-            counter++;
-            SVPWM_Calculation(&U_d, &U_q, Sin_theta_e, Cos_theta_e, U_svpwm_max,Udc, &Duty_A, &Duty_B, &Duty_C);
-            // 设定CCR值
-            Set_CCR(Duty_A, Duty_B, Duty_C);
             break;
         }
-        break;
-    }
     // 5——伪随机辨识Lq同步电感
-    case 5: {
-        if (HK_END == false)
+    case 5:
         {
-            if (counter == (((1 << PRBS_N) - 1) * PRBS_n) + 10000)
+            if (HK_END == false)
             {
-                U_q = PRBS_Work_Point;
-                HK_END = true;
-                counter = 0;
-                HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
-                break;
-            }
-            if (counter < 10000)
-            {
+                if (counter == (((1 << PRBS_N) - 1) * PRBS_n) + 10000)
+                {
+                    U_q = PRBS_Work_Point;
+                    HK_END = true;
+                    counter = 0;
+                    HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
+                    break;
+                }
+                else if (counter < 10000)
+                {
+                    counter++;
+                    U_q = PRBS_Work_Point;
+                    SVPWM_Calculation(&U_d, &U_q, Sin_theta_e, Cos_theta_e, U_svpwm_max, Udc, &Duty_A, &Duty_B,
+                                      &Duty_C);
+                    // 设定CCR值
+                    Set_CCR(Duty_A, Duty_B, Duty_C);
+                    break;
+                }
+                else if (counter >= 10000)
+                {
+                    if (m_seq[counter - 10000] == 0)
+                    {
+                        U_q = PRBS_Work_Point + PRBS_A;
+                    }
+                    else
+                    {
+                        U_q = PRBS_Work_Point - PRBS_A;
+                    }
+                }
+                // //电气锁轴
+                // D_Controller.Error_Now = 0.5 - I_d;
+                // Discrete_Controller(&D_Controller);
+                // U_d += D_Controller.Output_Delta_Now;
+
+                Output_D[counter - 10000] = I_d;
+                Output_Q[counter - 10000] = I_q;
+                Output_theta_e[counter - 10000] = theta_e;
                 counter++;
-                U_q = PRBS_Work_Point;
-                SVPWM_Calculation(&U_d, &U_q, Sin_theta_e, Cos_theta_e, U_svpwm_max,Udc, &Duty_A, &Duty_B, &Duty_C);
+                SVPWM_Calculation(&U_d, &U_q, Sin_theta_e, Cos_theta_e, U_svpwm_max, Udc, &Duty_A, &Duty_B, &Duty_C);
                 // 设定CCR值
                 Set_CCR(Duty_A, Duty_B, Duty_C);
                 break;
             }
-            else if (m_seq[counter - 10000] == 0)
-            {
-                U_q = PRBS_Work_Point + PRBS_A;
-            }
-            else
-            {
-                U_q = PRBS_Work_Point - PRBS_A;
-            }
-            // //电气锁轴
-            // D_Controller.Error_Now = 0.5 - I_d;
-            // Discrete_Controller(&D_Controller);
-            // U_d += D_Controller.Output_Delta_Now;
-
-            Output_D[counter - 10000] = I_d;
-            Output_Q[counter - 10000] = I_q;
-            Output_theta_e[counter - 10000] = theta_e;
-            counter++;
-            SVPWM_Calculation(&U_d, &U_q, Sin_theta_e, Cos_theta_e, U_svpwm_max,Udc, &Duty_A, &Duty_B, &Duty_C);
-            // 设定CCR值
-            Set_CCR(Duty_A, Duty_B, Duty_C);
             break;
         }
-        break;
-    }
     // 6——D轴单位阶跃模型验证
-    case 6: {
-        if (HK_END == false)
+    case 6:
         {
-            if (counter == (((1 << PRBS_N) - 1) * PRBS_n))
+            if (HK_END == false)
             {
-                U_d = (Square_Start + Square_End) / 2.0;
-                HK_END = true;
-                counter = 0;
-                HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
+                if (counter == (((1 << PRBS_N) - 1) * PRBS_n))
+                {
+                    U_d = (Square_Start + Square_End) / 2.0;
+                    HK_END = true;
+                    counter = 0;
+                    HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
+                    break;
+                }
+                else if (m_seq[counter] == 0)
+                {
+                    U_d = Square_Start;
+                }
+                else
+                {
+                    U_d = Square_End;
+                }
+                Output_D[counter] = I_d;
+                Output_Q[counter] = I_q;
+                Output_theta_e[counter] = theta_e;
+                counter++;
+                SVPWM_Calculation(&U_d, &U_q, Sin_theta_e, Cos_theta_e, U_svpwm_max, Udc, &Duty_A, &Duty_B, &Duty_C);
+                // 设定CCR值
+                Set_CCR(Duty_A, Duty_B, Duty_C);
                 break;
             }
-            else if (m_seq[counter] == 0)
-            {
-                U_d = Square_Start;
-            }
-            else
-            {
-                U_d = Square_End;
-            }
-            Output_D[counter] = I_d;
-            Output_Q[counter] = I_q;
-            Output_theta_e[counter] = theta_e;
-            counter++;
-            SVPWM_Calculation(&U_d, &U_q, Sin_theta_e, Cos_theta_e, U_svpwm_max,Udc, &Duty_A, &Duty_B, &Duty_C);
-            // 设定CCR值
-            Set_CCR(Duty_A, Duty_B, Duty_C);
             break;
         }
-        break;
-    }
     // 7——Q轴单位阶跃模型验证
-    case 7: {
-        if (HK_END == false)
+    case 7:
         {
-            if (counter == (((1 << PRBS_N) - 1) * PRBS_n))
+            if (HK_END == false)
             {
-                U_q = (Square_Start + Square_End) / 2.0;
-                HK_END = true;
-                counter = 0;
-                HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
+                if (counter == (((1 << PRBS_N) - 1) * PRBS_n))
+                {
+                    U_q = (Square_Start + Square_End) / 2.0;
+                    HK_END = true;
+                    counter = 0;
+                    HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
+                    break;
+                }
+                else if (m_seq[counter] == 0)
+                {
+                    U_q = Square_Start;
+                }
+                else
+                {
+                    U_q = Square_End;
+                }
+                Output_D[counter] = I_d;
+                Output_Q[counter] = I_q;
+                Output_theta_e[counter] = theta_e;
+                counter++;
+                SVPWM_Calculation(&U_d, &U_q, Sin_theta_e, Cos_theta_e, U_svpwm_max, Udc, &Duty_A, &Duty_B, &Duty_C);
+                // 设定CCR值
+                Set_CCR(Duty_A, Duty_B, Duty_C);
                 break;
             }
-            else if (m_seq[counter] == 0)
-            {
-                U_q = Square_Start;
-            }
-            else
-            {
-                U_q = Square_End;
-            }
-            Output_D[counter] = I_d;
-            Output_Q[counter] = I_q;
-            Output_theta_e[counter] = theta_e;
-            counter++;
-            SVPWM_Calculation(&U_d, &U_q, Sin_theta_e, Cos_theta_e, U_svpwm_max,Udc, &Duty_A, &Duty_B, &Duty_C);
-            // 设定CCR值
-            Set_CCR(Duty_A, Duty_B, Duty_C);
             break;
         }
-        break;
-    }
     // 8——D轴闭环阶跃模型验证
-    case 8:{
-        if (HK_END == false)
+    case 8:
         {
-            if (counter == ((1 << PRBS_N) - 1) * PRBS_n)
+            if (HK_END == false)
             {
-                D_Controller.Setvalue = Square_Start;
-                HK_END = true;
-                counter = 0;
-                HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
+                if (counter == ((1 << PRBS_N) - 1) * PRBS_n)
+                {
+                    D_Controller.Setvalue = (Square_Start + Square_End) / 2.0;
+                    HK_END = true;
+                    counter = 0;
+                    HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
+                    break;
+                }
+                else if (m_seq[counter] == 0)
+                {
+                    D_Controller.Setvalue = Square_Start;
+                }
+                else
+                {
+                    D_Controller.Setvalue = Square_End;
+                }
+                D_Controller.Error_Now = D_Controller.Setvalue - I_d;
+                // Q_Controller.Error_Now = 0 - I_q;
+                Discrete_Controller(&D_Controller);
+                // Discrete_Controller(&Q_Controller);
+                U_d += D_Controller.Output_Delta_Now;
+                // U_q += Q_Controller.Output_Delta_Now;
+                // 电流环前馈解耦
+                float we = n_m * 0.10472 * MOTOR_POLE_PAIRS;
+                // U_d -= we * MOTOR_Ld * I_q;
+                // U_q += we * (MOTOR_Lq * I_d + MOTOR_Psi);
+                Output_D[counter] = I_d;
+                Output_Q[counter] = I_q;
+                Output_theta_e[counter] = theta_e;
+                counter++;
+                SVPWM_Calculation(&U_d, &U_q, Sin_theta_e, Cos_theta_e, U_svpwm_max, Udc, &Duty_A, &Duty_B, &Duty_C);
+                // 设定CCR值
+                Set_CCR(Duty_A, Duty_B, Duty_C);
                 break;
             }
-            else if (m_seq[counter] == 0)
+            break;
+        }
+    // 9——Q轴闭环阶跃模型验证
+    case 9:
+        {
+            if (HK_END == false)
             {
-                D_Controller.Setvalue = Square_Start;
+                if (counter == ((1 << PRBS_N) - 1) * PRBS_n)
+                {
+                    Q_Controller.Setvalue = (Square_Start + Square_End) / 2.0;;
+                    HK_END = true;
+                    counter = 0;
+                    HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
+                    break;
+                }
+                else if (m_seq[counter] == 0)
+                {
+                    Q_Controller.Setvalue = Square_Start;
+                }
+                else
+                {
+                    Q_Controller.Setvalue = Square_End;
+                }
+                Q_Controller.Error_Now = Q_Controller.Setvalue - I_q;
+                Discrete_Controller(&Q_Controller);
+                U_q += Q_Controller.Output_Delta_Now;
+                // 电流环前馈解耦
+                float we = n_m * 0.10472 * MOTOR_POLE_PAIRS;
+                // U_d -= we * MOTOR_Ld * I_q;
+                // U_q += we * (MOTOR_Lq * I_d + MOTOR_Psi);
+                Output_D[counter] = I_d;
+                Output_Q[counter] = I_q;
+                Output_theta_e[counter] = theta_e;
+                counter++;
+                SVPWM_Calculation(&U_d, &U_q, Sin_theta_e, Cos_theta_e, U_svpwm_max, Udc, &Duty_A, &Duty_B, &Duty_C);
+                // 设定CCR值
+                Set_CCR(Duty_A, Duty_B, Duty_C);
+                break;
             }
-            else
-            {
-                D_Controller.Setvalue = Square_End;
-            }
-            D_Controller.Error_Now = D_Controller.Setvalue - I_d;
+            break;
+        }
+    // 10——伪随机辨识速度环被控对象
+    // 11——速度环开环方波响应模型验证
+    case 10:
+    case 11:
+        {
+            // Q_Controller.Error_Now = Q_Controller.Setvalue - I_q;
+            // Discrete_Controller(&Q_Controller);
+            // U_q += Q_Controller.Output_Delta_Now;
+            D_Controller.Error_Now = 0 - I_d;
             Discrete_Controller(&D_Controller);
             U_d += D_Controller.Output_Delta_Now;
-            // // 电流环前馈解耦
-            // float we = n_m * 0.10472 * MOTOR_POLE_PAIRS;
-            // U_d -= we * MOTOR_Ld * Q;
-            // U_q += we * (MOTOR_Lq * D + MOTOR_Psi);
-            Output_D[counter] = I_d;
-            Output_Q[counter] = I_q;
-            Output_theta_e[counter] = theta_e;
-            counter++;
-            SVPWM_Calculation(&U_d, &U_q, Sin_theta_e, Cos_theta_e, U_svpwm_max,Udc, &Duty_A, &Duty_B, &Duty_C);
-            // 设定CCR值
-            Set_CCR(Duty_A, Duty_B, Duty_C);
-            break;
-        }
-        break;
-    }
-    // 9——Q轴闭环阶跃模型验证
-    case 9:{
-        if (HK_END == false)
-        {
-            if (counter == ((1 << PRBS_N) - 1) * PRBS_n)
-            {
-                Q_Controller.Setvalue = Square_Start;
-                HK_END = true;
-                counter = 0;
-                HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
-                break;
-            }
-            else if (m_seq[counter] == 0)
-            {
-                Q_Controller.Setvalue = Square_Start;
-            }
-            else
-            {
-                Q_Controller.Setvalue = Square_End;
-            }
-            Q_Controller.Error_Now = Q_Controller.Setvalue - I_q;
-            Discrete_Controller(&Q_Controller);
-            U_q += Q_Controller.Output_Delta_Now;
-            // 电流环前馈解耦
+            //电流环前馈解耦
             float we = n_m * 0.10472 * MOTOR_POLE_PAIRS;
             U_d -= we * MOTOR_Ld * I_q;
-            U_q += we * (MOTOR_Lq * I_d + MOTOR_Psi);
-            Output_D[counter] = I_d;
-            Output_Q[counter] = I_q;
-            Output_theta_e[counter] = theta_e;
-            counter++;
-            SVPWM_Calculation(&U_d, &U_q, Sin_theta_e, Cos_theta_e, U_svpwm_max,Udc, &Duty_A, &Duty_B, &Duty_C);
+            // U_q += we * (MOTOR_Lq * I_d + MOTOR_Psi);
+            SVPWM_Calculation(&U_d, &U_q, Sin_theta_e, Cos_theta_e, U_svpwm_max, Udc, &Duty_A, &Duty_B, &Duty_C);
             // 设定CCR值
             Set_CCR(Duty_A, Duty_B, Duty_C);
             break;
         }
-        break;
-    }
-    default: {
-        SVPWM_Calculation(&U_d, &U_q, Sin_theta_e, Cos_theta_e, U_svpwm_max,Udc, &Duty_A, &Duty_B, &Duty_C);
-        // 设定CCR值
-        Set_CCR(Duty_A, Duty_B, Duty_C);
-        break;
-    }
+    default:
+        {
+            SVPWM_Calculation(&U_d, &U_q, Sin_theta_e, Cos_theta_e, U_svpwm_max, Udc, &Duty_A, &Duty_B, &Duty_C);
+            // 设定CCR值
+            Set_CCR(Duty_A, Duty_B, Duty_C);
+            break;
+        }
     }
     //重置标志位
     Current_Control_Flag = false;
-    HAL_GPIO_WritePin(Test_GPIO_Port,Test_Pin, GPIO_PIN_RESET); 
+    HAL_GPIO_WritePin(Test_GPIO_Port,Test_Pin, GPIO_PIN_RESET);
 }
 
 void Speed_Control()
@@ -450,240 +487,302 @@ void Speed_Control()
     switch (Identification_Mode)
     {
     // 1——相电阻，D轴方向
-    case 1: {
-        if (counter == 0)
+    case 1:
         {
-            U_d = -6;
+            if (counter == 0)
+            {
+                U_d = -6;
+            }
+            if (counter == 301)
+            {
+                U_d += 0.1;
+                counter = 1;
+            }
+            else
+            {
+                counter++;
+            }
+            break;
         }
-        if (counter == 301)
-        {
-            U_d += 0.1;
-            counter = 1;
-        }
-        else
-        {
-            counter++;
-        }
-        break;
-    }
     // 2——相电阻，Q轴方向
-    case 2: {
-        if (counter == 0)
+    case 2:
         {
-            U_q = -6;
+            if (counter == 0)
+            {
+                U_q = -6;
+            }
+            if (counter == 301)
+            {
+                U_q += 0.1;
+                counter = 1;
+            }
+            else
+            {
+                counter++;
+            }
+            break;
         }
-        if (counter == 301)
-        {
-            U_q += 0.1;
-            counter = 1;
-        }
-        else
-        {
-            counter++;
-        }
-        break;
-    }
     // 3——伪随机辨识Ld同步电感
-    case 3: {
-        if (HK_END == true)
+    case 3:
         {
-            HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
-            if (counter >= (((1 << PRBS_N) - 1) * PRBS_n))
+            if (HK_END == true)
             {
-                U_d = PRBS_Work_Point;
-                I_d = 0;
+                HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
+                if (counter >= (((1 << PRBS_N) - 1) * PRBS_n))
+                {
+                    U_d = PRBS_Work_Point;
+                    I_d = 0;
+                    break;
+                }
+                else if (m_seq[counter] == 0)
+                {
+                    U_d = PRBS_Work_Point + PRBS_A;
+                }
+                else
+                {
+                    U_d = PRBS_Work_Point - PRBS_A;
+                }
+                I_d = Output_D[counter];
+                I_q = Output_Q[counter];
+                theta_e = Output_theta_e[counter];
+                counter++;
                 break;
             }
-            if (m_seq[counter] == 0)
-            {
-                U_d = PRBS_Work_Point + PRBS_A;
-            }
-            else
-            {
-                U_d = PRBS_Work_Point - PRBS_A;
-            }
-            I_d = Output_D[counter];
-            I_q = Output_Q[counter];
-            theta_e = Output_theta_e[counter];
-            counter++;
             break;
         }
-        break;
-    }
     // 4——永磁体磁链辨识
-    case 4: {
-        if (counter == 0)
+    case 4:
         {
-            U_q = -6;
-        }
-        if (counter == 301)
-        {
-            U_q += 0.1;
-            counter = 1;
-        }
-        else
-        {
-            counter++;
-        }
-        float we = n_m * MOTOR_POLE_PAIRS * 2 * PI / 60.0;
-        if (we == 0)
-        {
-            break;
-        }
-        for (int i = 1; i < 10; i++)
-        {
-            Psi_Win[i] = Psi_Win[i - 1];
-        }
-        Psi_Win[0] = (U_q - I_q * MOTOR_R - MOTOR_Ld * we * I_d) / we;
-        Psi = 0;
-        for (int i = 0; i < 10; i++)
-        {
-            Psi += Psi_Win[i];
-        }
-        Psi = Psi / 10.0;
-        break;
-    }
-    // 5——伪随机辨识Lq同步电感
-    case 5: {
-        if (HK_END == true)
-        {
-            // HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
-            if (counter >= (((1 << PRBS_N) - 1) * PRBS_n))
+            if (counter == 0)
             {
-                U_q = PRBS_Work_Point;
-                I_q = 0;
-                break;
+                U_q = -6;
             }
-            if (m_seq[counter] == 0)
+            if (counter == 301)
             {
-                U_q = PRBS_Work_Point + PRBS_A;
-            }
-            else if (m_seq[counter] == 1)
-            {
-                U_q = PRBS_Work_Point - PRBS_A;
-            }
-            I_d = Output_D[counter];
-            I_q = Output_Q[counter];
-            theta_e = Output_theta_e[counter];
-            counter++;
-            break;
-        }
-        break;
-    }
-    // 6——D轴单位阶跃模型验证
-    case 6: {
-        if (HK_END == true)
-        {
-            // HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
-            if (counter >= (((1 << PRBS_N) - 1) * PRBS_n))
-            {
-                U_d = (Square_Start + Square_End) / 2.0;
-                I_d = 0;
-                break;
-            }
-            else if (m_seq[counter] == 0)
-            {
-                U_d = Square_Start;
+                U_q += 0.1;
+                counter = 1;
             }
             else
             {
-                U_d = Square_End;
+                counter++;
             }
-            I_d = Output_D[counter];
-            I_q = Output_Q[counter];
-            theta_e = Output_theta_e[counter];
+            float we = n_m * MOTOR_POLE_PAIRS * 2 * PI / 60.0;
+            if (we == 0)
+            {
+                break;
+            }
+            for (int i = 1; i < 10; i++)
+            {
+                Psi_Win[i] = Psi_Win[i - 1];
+            }
+            Psi_Win[0] = (U_q - I_q * MOTOR_R - MOTOR_Ld * we * I_d) / we;
+            Psi = 0;
+            for (int i = 0; i < 10; i++)
+            {
+                Psi += Psi_Win[i];
+            }
+            Psi = Psi / 10.0;
+            break;
+        }
+    // 5——伪随机辨识Lq同步电感
+    case 5:
+        {
+            if (HK_END == true)
+            {
+                // HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
+                if (counter >= (((1 << PRBS_N) - 1) * PRBS_n))
+                {
+                    U_q = PRBS_Work_Point;
+                    I_q = 0;
+                    break;
+                }
+                else if (m_seq[counter] == 0)
+                {
+                    U_q = PRBS_Work_Point + PRBS_A;
+                }
+                else if (m_seq[counter] == 1)
+                {
+                    U_q = PRBS_Work_Point - PRBS_A;
+                }
+                I_d = Output_D[counter];
+                I_q = Output_Q[counter];
+                theta_e = Output_theta_e[counter];
+                counter++;
+                break;
+            }
+            break;
+        }
+    // 6——D轴单位阶跃模型验证
+    case 6:
+        {
+            if (HK_END == true)
+            {
+                // HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
+                if (counter >= (((1 << PRBS_N) - 1) * PRBS_n))
+                {
+                    U_d = (Square_Start + Square_End) / 2.0;
+                    I_d = 0;
+                    break;
+                }
+                else if (m_seq[counter] == 0)
+                {
+                    U_d = Square_Start;
+                }
+                else
+                {
+                    U_d = Square_End;
+                }
+                I_d = Output_D[counter];
+                I_q = Output_Q[counter];
+                theta_e = Output_theta_e[counter];
+                counter++;
+                break;
+            }
+            break;
+        }
+    // 7——Q轴单位阶跃模型验证
+    case 7:
+        {
+            if (HK_END == true)
+            {
+                HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
+                if (counter >= (((1 << PRBS_N) - 1) * PRBS_n))
+                {
+                    U_q = (Square_Start + Square_End) / 2.0;
+                    I_q = 0;
+                    break;
+                }
+                else if (m_seq[counter] == 0)
+                {
+                    U_q = Square_Start;
+                }
+                else
+                {
+                    U_q = Square_End;
+                }
+                I_d = Output_D[counter];
+                I_q = Output_Q[counter];
+                theta_e = Output_theta_e[counter];
+                counter++;
+                break;
+            }
+            break;
+        }
+    // 8——D轴闭环阶跃模型验证
+    case 8:
+        {
+            if (HK_END == true)
+            {
+                HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
+                if (counter >= (((1 << PRBS_N) - 1) * PRBS_n))
+                {
+                    D_Controller.Setvalue = (Square_Start + Square_End) / 2.0;
+                    I_d = 0;
+                    break;
+                }
+                if (m_seq[counter] == 0)
+                {
+                    D_Controller.Setvalue = Square_Start;
+                }
+                else
+                {
+                    D_Controller.Setvalue = Square_End;
+                }
+                I_d = Output_D[counter];
+                I_q = Output_Q[counter];
+                theta_e = Output_theta_e[counter];
+                counter++;
+                break;
+            }
+            break;
+        }
+    // 9——Q轴闭环阶跃模型验证
+    case 9:
+        {
+            if (HK_END == true)
+            {
+                HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
+                if (counter >= (((1 << PRBS_N) - 1) * PRBS_n))
+                {
+                    Q_Controller.Setvalue = (Square_Start + Square_End) / 2.0;
+                    I_q = 0;
+                    break;
+                }
+                if (m_seq[counter] == 0)
+                {
+                    Q_Controller.Setvalue = Square_Start;
+                }
+                else
+                {
+                    Q_Controller.Setvalue = Square_End;
+                }
+                I_d = Output_D[counter];
+                I_q = Output_Q[counter];
+                theta_e = Output_theta_e[counter];
+                counter++;
+                break;
+            }
+            break;
+        }
+    // 10——伪随机辨识速度环被控对象
+    case 10:
+        {
+            if (counter >= (((1 << PRBS_N) - 1) * PRBS_n) + 1000)
+            {
+                // Q_Controller.Setvalue = PRBS_Work_Point;
+                U_q = PRBS_Work_Point;
+                // U_q = (Square_Start + Square_End) / 2.0;
+                break;
+            }
+            else if (counter < 1000)
+            {
+                // Q_Controller.Setvalue = PRBS_Work_Point;
+                U_q = PRBS_Work_Point;
+                // U_q = Square_Start;
+            }
+            else if (counter >= 1000)
+            {
+                if (m_seq[counter - 1000] == 0)
+                {
+                    // Q_Controller.Setvalue = PRBS_Work_Point + PRBS_A;
+                    U_q = PRBS_Work_Point + PRBS_A;
+                    // U_q = Square_Start;
+                }
+                else if (m_seq[counter - 1000] == 1)
+                {
+                    // Q_Controller.Setvalue = PRBS_Work_Point - PRBS_A;
+                    U_q = PRBS_Work_Point - PRBS_A;
+                    // U_q = Square_End;
+                }
+            }
             counter++;
             break;
         }
-        break;
-    }
-    // 7——Q轴单位阶跃模型验证
-    case 7: {
-        if (HK_END == true)
+    // 11——速度环开环方波响应模型验证
+    case 11:
         {
-            HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
             if (counter >= (((1 << PRBS_N) - 1) * PRBS_n))
             {
                 U_q = (Square_Start + Square_End) / 2.0;
-                I_q = 0;
                 break;
             }
-            else if (m_seq[counter] == 0)
+            if (m_seq[counter] == 0)
             {
                 U_q = Square_Start;
             }
-            else
+            else if (m_seq[counter] == 1)
             {
                 U_q = Square_End;
             }
-            I_d = Output_D[counter];
-            I_q = Output_Q[counter];
-            theta_e = Output_theta_e[counter];
             counter++;
             break;
         }
-        break;
     }
-    // 8——D轴闭环阶跃模型验证
-    case 8:{
-        if (HK_END == true)
-        {
-            HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
-            if (counter >= (((1 << PRBS_N) - 1) * PRBS_n))
-            {
-                D_Controller.Setvalue = (Square_Start + Square_End) / 2.0;
-                I_d = 0;
-                break;
-            }
-            if (m_seq[counter] == 0)
-            {
-                D_Controller.Setvalue = Square_Start;
-            }
-            else
-            {
-                D_Controller.Setvalue = Square_End;
-            }
-            I_d = Output_D[counter];
-            I_q = Output_Q[counter];
-            theta_e = Output_theta_e[counter];
-            counter++;
-            break;
-        }
-        break;
-    }
-    // 9——Q轴闭环阶跃模型验证
-    case 9:{
-        if (HK_END == true)
-        {
-            HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_4);
-            if (counter >= (((1 << PRBS_N) - 1) * PRBS_n))
-            {
-                Q_Controller.Setvalue = (Square_Start + Square_End) / 2.0;
-                I_q = 0;
-                break;
-            }
-            if (m_seq[counter] == 0)
-            {
-                Q_Controller.Setvalue = Square_Start;
-            }
-            else
-            {
-                Q_Controller.Setvalue = Square_End;
-            }
-            I_d = Output_D[counter];
-            I_q = Output_Q[counter];
-            theta_e = Output_theta_e[counter];
-            counter++;
-            break;
-        }
-        break;
-    }
-}
 }
 
 void Controller_Init(float a1, float a2, float a3, float a4, float a5, float b0,
                      float b1, float b2, float b3, float b4, float b5, float Default_Set,
-                     Discrete_Controller_Struct *Controller)
+                     Discrete_Controller_Struct* Controller)
 {
     Controller->a1 = a1;
     Controller->a2 = a2;
@@ -698,4 +797,3 @@ void Controller_Init(float a1, float a2, float a3, float a4, float a5, float b0,
     Controller->b5 = b5;
     Controller->Setvalue = Default_Set;
 }
-    

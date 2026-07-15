@@ -22,27 +22,27 @@
 #define Speed_Filter 0.1
 
 // D轴电流环线性控制器参数
-#define D_a1 -1.37
-#define D_a2 0.3695
+#define D_a1 -1.123
+#define D_a2 0.1227
 #define D_a3 0
 #define D_a4 0
 #define D_a5 0
-#define D_b0 4.556
-#define D_b1 0.5237
-#define D_b2 -4.032
+#define D_b0 5.998
+#define D_b1 0.6373
+#define D_b2 -5.361
 #define D_b3 0
 #define D_b4 0
 #define D_b5 0
 
 // Q轴电流环线性控制器参数
-#define Q_a1 -1.693
-#define Q_a2 0.6929
+#define Q_a1 -1.123
+#define Q_a2 0.1227
 #define Q_a3 0
 #define Q_a4 0
 #define Q_a5 0
-#define Q_b0 1.875
-#define Q_b1 0.2138
-#define Q_b2 -1.661
+#define Q_b0 6.808
+#define Q_b1 0.7233
+#define Q_b2 -6.085
 #define Q_b3 0
 #define Q_b4 0
 #define Q_b5 0
@@ -87,7 +87,9 @@
 //7——Q轴开环方波响应模型验证
 //8——D轴闭环方波响应模型验证
 //9——Q轴闭环方波响应模型验证
-#define Identification_Mode_Default 7
+//10——伪随机辨识速度环被控对象
+//11——速度环开环方波响应模型验证
+#define Identification_Mode_Default 10
 
 //速度环输出限幅（电流环给定限幅）
 #define Speed_Output_Limit 0.5
@@ -96,9 +98,17 @@
 //级数
 #define PRBS_N 11
 //幅值
+/*
+辨识D轴电感时用1即可，
+辨识Q轴电感和速度环时为了获取较高的信噪比选用2
+*/
 #define PRBS_A 2
 //工作点
-#define PRBS_Work_Point 0
+/*
+辨识D、Q轴电感时分别在-4、-2、0、2、4上辨识
+速度环由于在0V附近转速不断在零速附近变化，非线性特性极强，因此只在-4、-2、2、4上辨识即可
+*/
+#define PRBS_Work_Point 4
 //周期数
 #define PRBS_n 1
 //移位寄存器初始值(非0)
@@ -108,11 +118,19 @@
 //方波起始值
 #define Square_Start 0
 //方波结束值
-#define Square_End  -5
+/*
+若进行DQ轴开环验证，则是设定Ud和Uq的值，可以大一点，如3~5
+若进行DQ轴闭环验证，则是设定电流给定值，需要小一些，如0.25~0.5，超出0.5容易发生控制器饱和引入非线性，不利于仿真分析
+*/
+#define Square_End -5
 //方波开始序号
 #define Square_Start_Index 1000
 //方波长度
-#define Square_Period 100
+/*
+若进行DQ轴开环验证、D轴的闭环验证或速度环开环验证，可以大一些，如50~100
+若进行Q轴的闭环验证，需要保证长度足够短使得在此期间电机可以视为不转动，需要短一些，如5~10
+*/
+#define Square_Period 50
 
 // 最高阶次5的线性控制器结构体
 // 控制器传递函数为C(z)=( b0*z^5 + b1*z^4 + b2*z^3 + b3*z^2 + b4*z + b5) / (z^5 + a1*z^4 + a2*z^3 + a3*z^2 + a4*z + a5)

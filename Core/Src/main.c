@@ -178,7 +178,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
     // 伪随机序列生成
-    if (Identification_Mode == 3 || Identification_Mode == 5)
+    if (Identification_Mode == 3 || Identification_Mode == 5 || Identification_Mode == 10)
     {
       /* 定义存储数组（大小为周期长度×周期数） */
       uint32_t lfsr = LFSR_INIT;
@@ -203,7 +203,7 @@ int main(void)
     }
   // 测试方波信号生成
     else if (Identification_Mode == 6 || Identification_Mode == 7 
-      || Identification_Mode == 8 || Identification_Mode == 9)
+      || Identification_Mode == 8 || Identification_Mode == 9 || Identification_Mode == 11)
     {
       uint32_t period = ((1 << PRBS_N) - 1) * PRBS_n;
       uint32_t seq_idx = 0; // 数组索引
