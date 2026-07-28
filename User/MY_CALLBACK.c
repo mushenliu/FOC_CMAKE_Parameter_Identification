@@ -48,6 +48,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
     extern float theta_m;
     extern float theta_m_last;
     extern float n_m;
+    extern float we;
     extern float n_m_last;
     extern float Udc;
     extern float U_svpwm_max;
@@ -55,7 +56,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
     if (theta_m - theta_m_last < 10 && theta_m - theta_m_last > -10) {
         n_m = (theta_m - theta_m_last) / (Ts_Speed * 6);
     }
+#if Identification_Mode_Default != 10
     n_m = (1-Speed_Filter) * n_m_last + Speed_Filter * n_m;
+#endif
+    we = n_m * 0.10472 * MOTOR_POLE_PAIRS;
     n_m_last = n_m;
     theta_m_last = theta_m;
     Udc = ADC_Data[2] *0.00686;
@@ -78,7 +82,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
     }
     HAL_UARTEx_ReceiveToIdle_DMA(&huart4, UART_Buffer, 100);
     // 以下三个选择其一进行设置
-    //  D_Controller.Setvalue = Order;
-    //  Q_Controller.Setvalue = Order;
+    // D_Controller.Setvalue = Order;
+    // Q_Controller.Setvalue = Order;
     Speed_Controller.Setvalue = Order;
 }

@@ -69,8 +69,9 @@ float Sin_theta_e = 0;
 float Cos_theta_e = 0;
 // 机械角速度
 float n_m = 0;
-// 速度环低通滤波
 float n_m_last = 0;
+// 电角速度（所有模式均在速度回调中计算）
+float we = 0;
 // 零位偏置
 float ADC1_ZERO = 0;
 float ADC2_ZERO = 0;
@@ -87,7 +88,7 @@ float Duty_B = 0;
 float Duty_C = 0;
 // 母线电压
 float Udc = U_DC_Default;
-//SVPWM最大电压
+// SVPWM最大电压
 float U_svpwm_max = U_DC_Default / SQRT3;
 // DQ轴驱动电压
 float U_d = Ud_Default;
@@ -101,27 +102,61 @@ Discrete_Controller_Struct D_Controller, Q_Controller, Speed_Controller;
 uint8_t UART_Buffer[50];
 float Order = 0;
 uint16_t UART_Length = 0;
-// 状态计数器
+// 电流环运行标志位
+bool Current_Control_Flag = false;
+
+// ════════════════════════════════════════════════════════════════
+// 模式相关变量（编译期按需分配）
+// ════════════════════════════════════════════════════════════════
+
+// 状态计数器 — 模式 1~12
+#if Identification_Mode_Default != 13
 int counter = 0;
-// 参数辨识标志位
-int Identification_Mode = Identification_Mode_Default;
-// /* 本原多项式反馈位(对应x^11 + x^9 + 1，位索引从0开始) */
-const uint8_t taps[] = {9, 0}; // 第10位和第1位(索引9和0)
+#endif
+
+// 伪随机辨识结束标志位 — 模式 3,5,6,7,8,9
+#if Identification_Mode_Default == 3  || Identification_Mode_Default == 5  || \
+    Identification_Mode_Default == 6  || Identification_Mode_Default == 7  || \
+    Identification_Mode_Default == 8  || Identification_Mode_Default == 9
+bool HK_END = false;
+#endif
+
+// PRBS 本原多项式反馈位 — 模式 3,5,10
+#if Identification_Mode_Default == 3  || Identification_Mode_Default == 5  || \
+    Identification_Mode_Default == 10
+const uint8_t taps[] = {9, 0}; // x^11 + x^9 + 1
 const uint8_t tap_cnt = sizeof(taps) / sizeof(taps[0]);
-/* 定义存储数组（大小为周期长度×周期数） */
+#endif
+
+// M序列和输出序列 — 模式 3,5,6,7,8,9,10,11,12
+#if Identification_Mode_Default == 3  || Identification_Mode_Default == 5  || \
+    Identification_Mode_Default == 6  || Identification_Mode_Default == 7  || \
+    Identification_Mode_Default == 8  || Identification_Mode_Default == 9  || \
+    Identification_Mode_Default == 10 || Identification_Mode_Default == 11 || \
+    Identification_Mode_Default == 12
 uint16_t m_seq[((1 << PRBS_N) - 1) * PRBS_n];
 float Output_D[((1 << PRBS_N) - 1) * PRBS_n];
 float Output_Q[((1 << PRBS_N) - 1) * PRBS_n];
 float Output_theta_e[((1 << PRBS_N) - 1) * PRBS_n];
+#endif
 
-// 伪随机辨识结束标志位
-bool HK_END = false;
-//电流环运行标志位
-bool Current_Control_Flag = false;
+// 反电动势前馈变量 — 模式 10,11,12,13
+#if Identification_Mode_Default >= 10
+float E_D_ff = 0;
+float E_D_ff_last = 0;
+#endif
+#if Identification_Mode_Default == 12 || Identification_Mode_Default == 13
+float E_Q_ff = 0;
+float E_Q_ff_last = 0;
+#endif
 
-// 永磁体磁链
+// 永磁体磁链 — 所有模式（JUSTFLOAT 注册）
 float Psi = 0;
+
+// 磁链滑动窗口 — 仅模式 4
+#if Identification_Mode_Default == 4
 float Psi_Win[10] = {0};
+#endif
 
 /* USER CODE END PV */
 
@@ -177,51 +212,56 @@ int main(void)
   MX_UART4_Init();
   /* USER CODE BEGIN 2 */
 
-    // 伪随机序列生成
-    if (Identification_Mode == 3 || Identification_Mode == 5 || Identification_Mode == 10)
+    // ════════════════════════════════════════════════════════════════
+    // 激励信号生成（编译期按需编译）
+    // ════════════════════════════════════════════════════════════════
+
+    // ── PRBS 序列生成：模式 3,5,10 ──
+#if Identification_Mode_Default == 3  || Identification_Mode_Default == 5  || \
+    Identification_Mode_Default == 10
     {
-      /* 定义存储数组（大小为周期长度×周期数） */
-      uint32_t lfsr = LFSR_INIT;
-      uint32_t period = (1 << PRBS_N) - 1;
-      uint32_t seq_idx = 0; // 数组索引
-      for (uint8_t cyc = 0; cyc < PRBS_n; cyc++)
-      {
-        for (uint32_t i = 0; i < period; i++)
+        uint32_t lfsr = LFSR_INIT;
+        uint32_t period = (1 << PRBS_N) - 1;
+        uint32_t seq_idx = 0;
+        for (uint8_t cyc = 0; cyc < PRBS_n; cyc++)
         {
-        /* 计算反馈位 */
-        uint32_t fb = 0;
-        for (uint8_t t = 0; t < tap_cnt; t++)
-        {
-          fb ^= (lfsr >> taps[t]) & 0x01;
+            for (uint32_t i = 0; i < period; i++)
+            {
+                uint32_t fb = 0;
+                for (uint8_t t = 0; t < tap_cnt; t++)
+                {
+                    fb ^= (lfsr >> taps[t]) & 0x01;
+                }
+                m_seq[seq_idx++] = (lfsr & 0x01);
+                lfsr = (lfsr >> 1) | (fb << (PRBS_N - 1));
+            }
         }
-        /* 存储序列位到数组（0或1） */
-        m_seq[seq_idx++] = (lfsr & 0x01);
-        /* 更新移位寄存器 */
-        lfsr = (lfsr >> 1) | (fb << (PRBS_N - 1));
-        }
-      }
     }
-  // 测试方波信号生成
-    else if (Identification_Mode == 6 || Identification_Mode == 7 
-      || Identification_Mode == 8 || Identification_Mode == 9 || Identification_Mode == 11)
+#endif
+
+    // ── 方波信号生成：模式 6,7,8,9,11,12 ──
+#if Identification_Mode_Default == 6  || Identification_Mode_Default == 7  || \
+    Identification_Mode_Default == 8  || Identification_Mode_Default == 9  || \
+    Identification_Mode_Default == 11 || Identification_Mode_Default == 12
     {
-      uint32_t period = ((1 << PRBS_N) - 1) * PRBS_n;
-      uint32_t seq_idx = 0; // 数组索引
-      for (seq_idx = 0; seq_idx < period; seq_idx++)
-      {
-        if(seq_idx < Square_Start_Index || seq_idx >= (Square_Start_Index + Square_Period))
+        uint32_t period = ((1 << PRBS_N) - 1) * PRBS_n;
+        uint32_t seq_idx = 0;
+        for (seq_idx = 0; seq_idx < period; seq_idx++)
         {
-          m_seq[seq_idx] = 0;
+            if (seq_idx < Square_Start_Index || seq_idx >= (Square_Start_Index + Square_Period))
+            {
+                m_seq[seq_idx] = 0;
+            }
+            else
+            {
+                m_seq[seq_idx] = 1;
+            }
         }
-        else
-        {
-          m_seq[seq_idx] = 1;
-        }
-      }
     }
+#endif
 
     HAL_UARTEx_ReceiveToIdle_DMA(&huart4, UART_Buffer, 100);
-   // 线性控制器结构体初始化
+    // 线性控制器结构体初始化
     Controller_Init(D_a1, D_a2, D_a3, D_a4, D_a5, D_b0, D_b1, D_b2, D_b3, D_b4, D_b5,
                     ID_Target_Default, &D_Controller);
     Controller_Init(Q_a1, Q_a2, Q_a3, Q_a4, Q_a5, Q_b0, Q_b1, Q_b2, Q_b3, Q_b4, Q_b5,
@@ -264,91 +304,8 @@ int main(void)
     HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
     HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
     HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
-    // 编码器零位校准
-    // int k = 0;
-    // Ud = 12;
-    // Uq = 0;
-    // // 基于I闭环控制模型抽象的编码器零位矫正
-    // float wm_0_90[2] = {0};
-    // for (int i = 0; i < 2; i++)
-    // {
-    //     // 读取起始机械角度
-    //     theta_last = TLE5012B_Angle();
-    //     // 给定Ud情况下转动
-    //     for (int j = 0; j < 50; j++)
-    //     {
-    //         theta_e = TLE5012B_Angle();
-    //         theta_e = theta_e * MOTOR_POLE_PAIRS + i * 90;
-    //         DSP_Float_Calc_SinCos(theta_e, &Sin, &Cos);
-    //         SVPWM_Calculation(&Ud, &Uq, Sin, Cos, Udc, &Duty_A, &Duty_B, &Duty_C);
-    //         Set_CCR(Duty_A, Duty_B, Duty_C);
-    //     }
-    //     // 读取结束机械角度
-    //     theta = TLE5012B_Angle();
-    //     wm_0_90[i] = theta - theta_last;
-    //     Ud = 12;
-    // }
-    // if (wm_0_90[0] * wm_0_90[1] < 0)
-    // {
-    //     // 零位位于第一、第三象限
-    //     if (wm_0_90[1] < 0)
-    //     {
-    //         // 零位位于第三象限
-    //         Angel_ZERO = 180;
-    //     }
-    //     else if (wm_0_90[1] > 0)
-    //     {
-    //         // 零位位于第一象限
-    //         Angel_ZERO = 0;
-    //     }
-    // }
-    // else if (wm_0_90[0] * wm_0_90[1] > 0)
-    // {
-    //     // 零位位于第二、第四象限
-    //     if (wm_0_90[1] < 0)
-    //     {
-    //         // 零位位于第二象限
-    //         Angel_ZERO = 90;
-    //     }
-    //     else if (wm_0_90[1] > 0)
-    //     {
-    //         // 零位位于第四象限
-    //         Angel_ZERO = 270;
-    //     }
-    // }
-    // while (k < 3)
-    // {
-    //     theta_last = TLE5012B_Angle();
-    //     for (int i = 0; i < 100; i++)
-    //     {
-    //         theta_e = TLE5012B_Angle();
-    //         theta_e = theta_e * MOTOR_POLE_PAIRS + Angel_ZERO;
-    //         DSP_Float_Calc_SinCos(theta_e, &Sin, &Cos);
-    //         SVPWM_Calculation(&Ud, &Uq, Sin, Cos, Udc, &Duty_A, &Duty_B, &Duty_C);
-    //         Set_CCR(Duty_A, Duty_B, Duty_C);
-    //     }
-    //     theta = TLE5012B_Angle();
-    //     wm = (1 - Speed_Filter) * (theta - theta_last) + Speed_Filter * wm;
-    //     Ud = 12;
-    //     if (wm < 0.000001 && wm > -0.000001)
-    //     {
-    //         k++;
-    //     }
-    //     else
-    //     {
-    //         k = 0;
-    //         Angel_ZERO -= 5 * wm;
-    //     }
-    // }
-    // theta = 0;
-    // wm = 0;
-    // theta_last = 0;
-    // wm_last = 0;
-    // theta_e = 0;
-    // // Angel_ZERO = 90;
-    // Ud = Ud_Default;
-    // Uq = Uq_Default;
 
+    // 编码器零位校准
     int k = 0;
     U_d = U_svpwm_max;
     while(k<10)
@@ -366,7 +323,7 @@ int main(void)
       theta_e = TLE5012B_Angle() * MOTOR_POLE_PAIRS - 120;
       theta_e = fmod(theta_e, 360);
       theta_e<0?theta_e+=360:theta_e;
-      Angel_ZERO += 360 - theta_e;  
+      Angel_ZERO += 360 - theta_e;
       //C相
       Set_CCR(0.1,0.1,0.9);
       HAL_Delay(500);
@@ -391,20 +348,22 @@ int main(void)
       U_d = 0;
       if (n_m < 0.5 && n_m > -0.5)
       {
-        break; 
+        break;
       }
       else {
         k++;
         Angel_ZERO = 0;
       }
     }
+  //统一采用0°零位
+  Angel_ZERO = 0;
 
     // 电流环控制中断
     HAL_TIM_PWM_Start_IT(&htim1, TIM_CHANNEL_4);
     // 速度环控制中断
     HAL_TIM_Base_Start_IT(&htim2);
 
-    // 初始化
+    // 初始化 JUSTFLOAT
     JUSTFLOAT_Init();
     // 绑定串口
     JUSTFLOAT_BindUart(&huart4);
@@ -415,9 +374,6 @@ int main(void)
     JUSTFLOAT_AddData(&Udc);
     JUSTFLOAT_AddData(&I_d);
     JUSTFLOAT_AddData(&I_q);
-    // JUSTFLOAT_AddData(&Duty_A);
-    // JUSTFLOAT_AddData(&Duty_B);
-    // JUSTFLOAT_AddData(&Duty_C);
     JUSTFLOAT_AddData(&Angel_ZERO);
     JUSTFLOAT_AddData(&U_d);
     JUSTFLOAT_AddData(&U_q);
@@ -427,8 +383,9 @@ int main(void)
     JUSTFLOAT_AddData(&Current_abc[0]);
     JUSTFLOAT_AddData(&Current_abc[1]);
     JUSTFLOAT_AddData(&Current_abc[2]);
+#if Identification_Mode_Default == 4
     JUSTFLOAT_AddData(&Psi);
-    
+#endif
 
   /* USER CODE END 2 */
 
