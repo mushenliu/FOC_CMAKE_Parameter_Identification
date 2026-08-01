@@ -1,0 +1,69 @@
+{
+    // ============================================================
+    // 通用 STM32 工作流任务（可随 git 仓库分享，适配任意 STM32 CMake 工程）
+    // - 依赖 ST bundle 的 cube 命令（STM32CubeProgrammer v2.22.0），
+    //   装好 STM32CubeIDE for VS Code 扩展包后 cube 自动进入 PATH
+    // - 烧录脚本自动搜索 build 目录下的 .elf 作为固件，
+    //   不依赖 CMake Tools（避免触发其"找不到可启动目标"的报错）
+    // - 烧录调用 .vscode 下的 PowerShell 脚本，终端输出为纯中文提示，
+    //   cube 英文输出进 %TEMP%\stm32-flash.log 备查
+    // - 注意：本文件不定义 type: debug 任务（该类型在此环境未注册，
+    //   会引发"任务类型不存在"错误）。调试全部走侧边栏 STM32 面板的
+    //   vscode.debug.startDebugging 直接指定 launch.json 配置
+    // ============================================================
+    "version": "2.0.0",
+    "tasks": [
+        {
+            // 任务1：只编译（侧边栏「编译」按钮 / 任务视图）
+            // 调用 stm32-build.ps1：编译输出做中文提示
+            // （"ninja: no work to do" → "项目无改动"），警告/错误仍原样显示
+            "label": "STM32: Build",
+            "type": "process",
+            "command": "powershell",
+            "args": [
+                "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}/.vscode/stm32-build.ps1"
+            ],
+            "group": "build",
+            // 用 VSCode 内置 $gcc 规则解析编译输出：
+            // 错误/警告自动进「问题」面板，可点击跳转到源码出错行
+            "problemMatcher": "$gcc"
+        },
+        {
+            // 任务2：编译 + 增量烧录（ST-Link，Ctrl+Shift+B 默认）
+            "label": "STM32: Build + Flash (ST-Link)",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "CMake: build",
+                "STM32: Flash (ST-Link)"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            // 任务3：只烧录不编译（ST-Link）—— 中文输出脚本
+            "label": "STM32: Flash (ST-Link)",
+            "type": "process",
+            "command": "powershell",
+            "args": [
+                "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}/.vscode/stm32-flash-stlink.ps1"
+            ],
+            "problemMatcher": []
+        },
+        {
+            // 任务4：只烧录不编译（J-Link）—— 需先装 SEGGER 工具并按脚本注释改配置
+            "label": "STM32: Flash (J-Link)",
+            "type": "process",
+            "command": "powershell",
+            "args": [
+                "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}/.vscode/stm32-flash-jlink.ps1"
+            ],
+            "problemMatcher": []
+        }
+    ]
+}

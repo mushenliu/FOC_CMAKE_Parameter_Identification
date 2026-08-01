@@ -91,7 +91,7 @@
 //11——速度环开环方波响应模型验证
 //12——速度环闭环方波响应模型验证
 //13——双闭环运行
-#define Identification_Mode_Default 12
+#define Identification_Mode_Default 13
 
 //速度环输出限幅（电流环给定限幅）
 #define Speed_Output_Limit 0.5

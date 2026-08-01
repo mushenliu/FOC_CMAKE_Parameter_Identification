@@ -1,0 +1,38 @@
+{
+    // ============================================================
+    // STM32 调试配置（ST-Link / J-Link 双配置）
+    // - 刻意不写 preBuild 字段：调试启动【不重新编译】，直接用现有固件下载进调试器
+    //   （调试前把固件下载到芯片是调试器的必要步骤，无法跳过；省掉的是编译）
+    // - ${command:cmake.launchTargetPath} 由 CMake Tools 提供，自动指向当前构建目标，
+    //   与工程名无关，可随 git 分享到任意 STM32 CMake 工程
+    // - ST 扩展原生支持 stlinkgdbtarget / jlinkgdbtarget 两种调试器类型，
+    //   device/board 信息由 ST 适配器从构建上下文自动解析
+    // ============================================================
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "stlinkgdbtarget",
+            "request": "launch",
+            "name": "STM32Cube Debug (ST-Link)",
+            "cwd": "${workspaceFolder}",
+            "runEntry": "main",
+            "imagesAndSymbols": [
+                {
+                    "imageFileName": "${command:cmake.launchTargetPath}"
+                }
+            ]
+        },
+        {
+            "type": "jlinkgdbtarget",
+            "request": "launch",
+            "name": "STM32Cube Debug (J-Link)",
+            "cwd": "${workspaceFolder}",
+            "runEntry": "main",
+            "imagesAndSymbols": [
+                {
+                    "imageFileName": "${command:cmake.launchTargetPath}"
+                }
+            ]
+        }
+    ]
+}
