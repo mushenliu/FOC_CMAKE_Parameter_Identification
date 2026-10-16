@@ -148,7 +148,7 @@ void Current_Control()
     // DQ轴电流控制器（按模式所需）
 #if Identification_Mode_Default == 8  || Identification_Mode_Default == 10 || \
     Identification_Mode_Default == 11 || Identification_Mode_Default == 12 || \
-    Identification_Mode_Default == 13
+    Identification_Mode_Default == 13 || Identification_Mode_Default == 14
     extern Discrete_Controller_Struct D_Controller;
 #endif
 #if Identification_Mode_Default == 9  || Identification_Mode_Default == 12 || \
@@ -453,6 +453,20 @@ void Current_Control()
         U_q += E_Q_ff - E_Q_ff_last;
         E_D_ff_last = E_D_ff;
         E_Q_ff_last = E_Q_ff;
+        SVPWM_Calculation(&U_d, &U_q, Sin_theta_e, Cos_theta_e, U_svpwm_max, Udc, &Duty_A, &Duty_B, &Duty_C);
+        Set_CCR(Duty_A, Duty_B, Duty_C);
+    }
+
+#elif Identification_Mode_Default == 14
+    // 14——D轴电流闭环、Q轴开环（Uq 由上位机给定）
+    {
+        D_Controller.Error_Now = D_Controller.Setvalue - I_d;
+        Discrete_Controller(&D_Controller);
+        U_d += D_Controller.Output_Delta_Now;
+        // D轴耦合项前馈解耦（增量式）
+        E_D_ff = -we * MOTOR_Lq * I_q;
+        U_d += E_D_ff - E_D_ff_last;
+        E_D_ff_last = E_D_ff;
         SVPWM_Calculation(&U_d, &U_q, Sin_theta_e, Cos_theta_e, U_svpwm_max, Udc, &Duty_A, &Duty_B, &Duty_C);
         Set_CCR(Duty_A, Duty_B, Duty_C);
     }

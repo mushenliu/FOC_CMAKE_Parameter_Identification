@@ -99,7 +99,7 @@ float I_q_Target = IQ_Target_Default;
 // 电流-速度环线性控制器
 Discrete_Controller_Struct D_Controller, Q_Controller, Speed_Controller;
 // 指令接收全局变量
-uint8_t UART_Buffer[50];
+uint8_t UART_Buffer[UART_RX_BUF_SIZE];
 float Order = 0;
 uint16_t UART_Length = 0;
 // 电流环运行标志位
@@ -260,7 +260,7 @@ int main(void)
     }
 #endif
 
-    HAL_UARTEx_ReceiveToIdle_DMA(&huart4, UART_Buffer, 100);
+    HAL_UARTEx_ReceiveToIdle_DMA(&huart4, UART_Buffer, UART_RX_BUF_SIZE);
     // 线性控制器结构体初始化
     Controller_Init(D_a1, D_a2, D_a3, D_a4, D_a5, D_b0, D_b1, D_b2, D_b3, D_b4, D_b5,
                     ID_Target_Default, &D_Controller);

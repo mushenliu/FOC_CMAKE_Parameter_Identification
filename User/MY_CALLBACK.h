@@ -48,14 +48,14 @@
 #define Q_b5 0
 
 // 速度环线性控制器参数
-#define Speed_a1 -1.7093
-#define Speed_a2 0.7093
+#define Speed_a1 -1.6889
+#define Speed_a2 0.6889
 #define Speed_a3 0
 #define Speed_a4 0
 #define Speed_a5 0
-#define Speed_b0 1.0958e-04
-#define Speed_b1 1.8165e-06
-#define Speed_b2 -1.0777e-04
+#define Speed_b0 0.0001404
+#define Speed_b1 2.52e-06
+#define Speed_b2 -0.0001379
 #define Speed_b3 0
 #define Speed_b4 0
 #define Speed_b5 0
@@ -91,13 +91,20 @@
 //11——速度环开环方波响应模型验证
 //12——速度环闭环方波响应模型验证
 //13——双闭环运行
-#define Identification_Mode_Default 13
+//14——D轴闭环Q轴开环运行
+#define Identification_Mode_Default 14
 
 //速度环输出限幅（电流环给定限幅）
 #define Speed_Output_Limit 0.5
 
 //速度环给定限幅
 #define Speed_Target_Limit 300
+
+//模式14（D轴闭环、Q轴开环）上位机给定Q轴电压的限幅，单位V
+#define Uq_OpenLoop_Limit 5
+
+//上位机指令接收缓冲长度，单位字节
+#define UART_RX_BUF_SIZE 64
 
 //PRBS序列参数
 //级数
@@ -126,9 +133,9 @@
 /*
 若进行DQ轴开环验证、速度环开环验证，则是设定Ud和Uq的值，可以大一点，如3~5
 若进行DQ轴闭环验证，则是设定电流给定值，需要小一些，如0.25~0.5，超出0.5容易发生控制器饱和引入非线性，不利于仿真分析
-若进行速度环闭环验证，则是设定转速值，需要很大，如150
+若进行速度环闭环验证，则是设定转速值，需要很大，如150~200
 */
-#define Square_End 150
+#define Square_End -150
 //方波开始序号
 #define Square_Start_Index 1000
 //方波长度

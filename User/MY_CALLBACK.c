@@ -70,19 +70,34 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
-    extern uint8_t UART_Buffer[100];
+    extern uint8_t UART_Buffer[UART_RX_BUF_SIZE];
     extern float Order;
     extern uint16_t UART_Length;
-    extern Discrete_Controller_Struct D_Controller, Q_Controller, Speed_Controller;
+#if Identification_Mode_Default == 13
+    extern Discrete_Controller_Struct Speed_Controller;
+#elif Identification_Mode_Default == 14
+    extern float U_q;
+#endif
     UART_Length = Size;
-    if (UART_Length > 0 && UART_Length < 100)
+    if (UART_Length > 0 && UART_Length < UART_RX_BUF_SIZE)
     {
         UART_Buffer[UART_Length] = '\0';
         Order = atof((const char *)UART_Buffer);
     }
-    HAL_UARTEx_ReceiveToIdle_DMA(&huart4, UART_Buffer, 100);
-    // 以下三个选择其一进行设置
-    // D_Controller.Setvalue = Order;
-    // Q_Controller.Setvalue = Order;
+    HAL_UARTEx_ReceiveToIdle_DMA(&huart4, UART_Buffer, UART_RX_BUF_SIZE);
+#if Identification_Mode_Default == 13
+    // 13——上位机指令给到速度环给定
     Speed_Controller.Setvalue = Order;
+#elif Identification_Mode_Default == 14
+    // 14——上位机指令给到Q轴电压（限幅保护）
+    if (Order > Uq_OpenLoop_Limit)
+    {
+        Order = Uq_OpenLoop_Limit;
+    }
+    else if (Order < -Uq_OpenLoop_Limit)
+    {
+        Order = -Uq_OpenLoop_Limit;
+    }
+    U_q = Order;
+#endif
 }
